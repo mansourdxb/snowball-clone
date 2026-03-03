@@ -185,3 +185,87 @@ $$ language plpgsql security definer;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- ============================================
+-- SUBSCRIPTIONS
+-- ============================================
+create table public.subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  tier text not null default 'free', -- free, starter, investor, expert
+  status text not null default 'none', -- none, trialing, active, past_due, canceled
+  stripe_customer_id text unique,
+  stripe_subscription_id text unique,
+  stripe_price_id text,
+  trial_ends_at timestamptz,
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  cancel_at_period_end boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.subscriptions enable row level security;
+
+create policy "Users can view own subscription"
+  on public.subscriptions for select
+  using (auth.uid() = user_id);
+
+create index idx_subscriptions_user_id on public.subscriptions(user_id);
+create index idx_subscriptions_stripe_customer_id on public.subscriptions(stripe_customer_id);
+
+create trigger set_updated_at before update on public.subscriptions
+  for each row execute function public.handle_updated_at();
+
+-- ============================================
+-- WATCHLISTS
+-- ============================================
+create table public.watchlists (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  symbol text not null,
+  name text not null,
+  asset_type text not null default 'stock',
+  notes text,
+  target_price numeric(18, 4),
+  alert_enabled boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique(user_id, symbol)
+);
+
+alter table public.watchlists enable row level security;
+
+create policy "Users can CRUD own watchlist"
+  on public.watchlists for all
+  using (auth.uid() = user_id);
+
+create index idx_watchlists_user_id on public.watchlists(user_id);
+
+-- ============================================
+-- CATEGORIES (for target allocation)
+-- ============================================
+create table public.categories (
+  id uuid primary key default uuid_generate_v4(),
+  portfolio_id uuid not null references public.portfolios(id) on delete cascade,
+  name text not null,
+  color text not null default '#3b82f6',
+  target_allocation numeric(5, 2) not null default 0, -- percentage 0-100
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.categories enable row level security;
+
+create policy "Users can CRUD own categories"
+  on public.categories for all
+  using (
+    portfolio_id in (
+      select id from public.portfolios where user_id = auth.uid()
+    )
+  );
+
+-- Link holdings to categories
+alter table public.holdings add column category_id uuid references public.categories(id) on delete set null;
+
+create trigger set_updated_at before update on public.categories
+  for each row execute function public.handle_updated_at();
