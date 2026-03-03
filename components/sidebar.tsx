@@ -8,8 +8,9 @@ const navItems = [
   { href: "/portfolios/p1", label: "Portfolios", icon: "💼" },
   { href: "/analytics", label: "Analytics", icon: "📈" },
   { href: "/dividends", label: "Dividends", icon: "💰" },
+  { href: "/rebalance", label: "Rebalance", icon: "⚖️" },
+  { href: "/backtest", label: "Portfolio Lab", icon: "🧪" },
   { href: "/watchlist", label: "Watchlist", icon: "👁️" },
-  { href: "/stock/AAPL", label: "Research", icon: "🔬" },
   { href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
